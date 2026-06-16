@@ -1,100 +1,101 @@
-# JibbleGroup
+# Vue movie search
 
-Movie search web app built with **Vue 3** (Composition API), **TypeScript**, **Quasar**, and **Pinia**. It queries the public [jsonmock Hackerrank movies API](https://jsonmock.hackerrank.com/api/movies/search) by title, supports **pagination**, and handles **loading**, **empty**, and **error** states. Styles use **Sass** (no Tailwind).
+A focused Vue and TypeScript assessment project for searching a public movie catalogue. It demonstrates debounced input, typed API validation, request cancellation, paginated results, explicit UI states, and deterministic browser tests.
 
-## What’s in the repo
+The application queries the HackerRank movie-search API by title and presents results through Quasar components. Pinia owns request state so the view stays declarative and stale responses cannot overwrite a newer search.
 
-- **UI**: Quasar layout, search field with debounced search, results table, pagination, banners for errors.
-- **State**: Pinia store with abort-aware `fetch` calls to avoid race conditions when the query or page changes quickly.
-- **API**: Typed client with HTTPS-only origin and validated JSON responses.
-- **Tests**: Vitest for the API client, store, and app shell; Playwright e2e tests with a mocked search API for stable CI-style runs.
+## Search workflow
 
-## Requirements
+```mermaid
+flowchart LR
+    Input[Search input] --> Debounce[Debounced watcher]
+    Debounce --> Store[Pinia search store]
+    Store -->|Abort previous request| API[Typed API client]
+    API --> Validate[Validate response shape]
+    Validate --> Table[Quasar results table]
+    Table --> Pagination[Page selection]
+    Pagination --> Store
+```
 
-- **Node.js** `^20.19.0` or `>=22.12.0` (see `package.json` `engines`).
+The interface distinguishes its initial, loading, empty, success and error states. Changing the query resets pagination, while changing the page keeps the active title. Each new request aborts the previous one to avoid out-of-order updates during fast typing or navigation.
 
 ## Run locally
 
-Install dependencies (this repo includes `package-lock.json`; use **npm** unless you prefer another tool and regenerate its lockfile):
+Use a Node.js version compatible with the `engines` field in `package.json`, then install and start the Vite development server:
 
-```sh
+```bash
 npm install
-```
-
-Start the Vite dev server (default [http://localhost:5173](http://localhost:5173)):
-
-```sh
 npm run dev
 ```
 
-Type-check only:
+Open `http://localhost:5173`.
 
-```sh
+Additional project commands:
+
+```bash
 npm run type-check
-```
-
-Production build (runs type-check in parallel with the Vite build):
-
-```sh
+npm run lint
 npm run build
-```
-
-Serve the production build locally:
-
-```sh
 npm run preview
 ```
 
-Lint (Oxlint + ESLint):
+The commands are documented from the package manifest; this portfolio review did not install dependencies or execute them.
 
-```sh
-npm run lint
-```
+## Design boundaries
 
-Format `src/` with Prettier:
+### Typed API client
 
-```sh
-npm run format
-```
+`src/api/moviesClient.ts` builds requests from a fixed HTTPS origin and validates pagination metadata and every movie entry before returning typed data. Invalid status codes, JSON, or response shapes become a `MoviesApiError` rather than leaking unchecked values into the UI.
+
+### Request ownership in Pinia
+
+`src/stores/moviesSearch.ts` owns the active `AbortController`, query, page, result set and status. Components trigger intent; they do not reproduce networking rules.
+
+### Debounced search
+
+`src/composables/useDebouncedWatch.ts` delays API work until input settles. Cancellation and debouncing solve different problems: debouncing limits calls, while cancellation protects state if an older call is already in flight.
+
+### UI states
+
+`MovieSearchView.vue` keeps loading, failure, empty results and pagination visible at the presentation boundary. Quasar supplies the layout and table primitives; Sass contains the project-specific styling.
 
 ## Tests
 
-### Unit tests (Vitest)
+Unit-test source covers:
 
-Watch mode (default):
+- API input validation, URL construction, response parsing and abort-signal forwarding;
+- Pinia search state, pagination, failures and cancellation;
+- application shell rendering.
 
-```sh
-npm run test:unit
-```
+Playwright source covers the browser search workflow with a mocked API, keeping the scenario deterministic and independent of public-service availability.
 
-Single non-watch run (e.g. CI or one-off):
-
-```sh
+```bash
+# Single Vitest run
 npm run test:unit -- --run
-```
 
-### End-to-end tests (Playwright)
-
-Install browsers once (or after upgrading `@playwright/test`):
-
-```sh
+# Install Playwright browsers once, then run e2e tests
 npx playwright install
-```
-
-Run all configured browser projects:
-
-```sh
 npm run test:e2e
 ```
 
-Run only Chromium (faster local feedback):
+The tests were inspected statically but not executed during the portfolio review. They establish behavior against mocks and fixtures, not uptime or correctness of the external HackerRank service.
 
-```sh
-npm run test:e2e -- --project=chromium
+## Repository map
+
+```text
+src/api/                  Typed HTTP client and API tests
+src/stores/               Pinia request state and store tests
+src/composables/          Debounced watcher
+src/views/                Search, results and pagination UI
+src/router/               Application route
+src/__tests__/            App-shell test
+e2e/                      Mocked Playwright workflow
 ```
 
-`playwright.config.ts` starts the dev server automatically for e2e unless you override that behavior.
+## Technology
 
-## Optional tooling
+Vue 3 Composition API, TypeScript, Pinia, Quasar, Vite, Sass, Vitest and Playwright.
 
-- **VS Code** with the [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) extension is a good match for `.vue` + TypeScript.
+## Scope
+
+This repository is a front-end assessment implementation. It intentionally uses a public read-only API and does not include authentication, a persistence layer, movie details, saved searches or production analytics.
